@@ -7,8 +7,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define syscode_case(x)                                                        \
-    case x:                                                                      \
+#define syscode_case(x)
+    case x:
         return #x
 
 const char *get_syscode(long);
@@ -18,14 +18,20 @@ struct user_regs_struct regs;
 int main() {
     pid_t child = fork();
     if (child == 0) {
+        /* 자식 프로세스를 추적 가능하도록 설정 */
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         execl("/bin/ls", "ls", NULL);
     } else if (child < 0) {
         printf("Fork failed.\n");
     } else {
         int status;
         while (waitpid(child, &status, 0) && !WIFEXITED(status)) {
+            /* 전체 레지스터 값을 가져오기 */
+            ptrace(PTRACE_GETREGS, child, NULL, &regs);
             fprintf(stderr, "[SYSCALL]:%-20s\t%5lld\n", get_syscode(regs.orig_rax),
                 regs.orig_rax);
+            /* 매 시스템 콜 마다 실행을 중단하게끔 설정하기 */
+            ptrace(PTRACE_SYSCALL, child, NULL, NULL);
         }
     }
     return 0;
